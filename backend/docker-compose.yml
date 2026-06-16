@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: fastapi_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: securepassword
+      POSTGRES_DB: fastapi_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fastapi_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: fastapi_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fastapi_web
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=dev
+      - DEBUG=True
+      - POSTGRES_SERVER=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=securepassword
+      - POSTGRES_DB=fastapi_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SECRET_KEY=supersecretjwtkeyforaccesstokensreplaceinproduction
+      - REFRESH_SECRET_KEY=supersecretjwtkeyforrefreshtokensreplaceinproduction
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/workspace
+    # Overwrite CMD to enable auto-reload during local development
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fastapi_celery_worker
+    restart: always
+    environment:
+      - ENVIRONMENT=dev
+      - DEBUG=True
+      - POSTGRES_SERVER=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=securepassword
+      - POSTGRES_DB=fastapi_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/workspace
+    command: celery -A app.tasks.celery_app worker --loglevel=info
+
+volumes:
+  postgres_data:

@@ -1,0 +1,43 @@
+[tool.black]
+line-length = 88
+target-version = ['py312']
+include = '\.pyi?$'
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "C",  # flake8-comprehensions
+    "B",  # flake8-bugbear
+    "UP", # pyupgrade
+]
+ignore = [
+    "B008", # do not perform function calls in argument defaults (fastapi Depends needs this)
+    "C901", # too complex
+]
+
+[tool.ruff.isort]
+known-first-party = ["app"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+exclude = ["alembic/"]
+
+[[tool.mypy.overrides]]
+module = "db.base"
+ignore_errors = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+]
